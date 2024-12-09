@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="prefix" default="summit_xl_"/>
+  <arg name="rviz_config" default="$(find velodyne_description)/rviz/summitxls_a_std.rviz"/>
+  <arg name="robot_model" default="summit_xls_lidar_front.urdf.xacro" doc="Different robot versions: ('')"/>
+
+  <arg name="omni_drive" default="true"/>
+	<arg if="$(arg omni_drive)" name="ros_planar_move_plugin" value="true"/>
+	<arg unless="$(arg omni_drive)" name="ros_planar_move_plugin" default="true"/>
+	<arg name="ros_planar_move_plugin_force_based" default="false"/>
+
+  <arg name="odom_frame" default="$(arg prefix)odom"/>
+  <arg name="base_frame" default="$(arg prefix)base_footprint"/>
+  <arg name="cmd_vel" default="$(optenv ROBOT_TWISTMUX_CMD_OUT robotnik_base_control/cmd_vel)"/>
+  <arg name="controller" default="$(optenv ROBOT_CONTROLLER robotnik_base_control)"/>
+  <arg name="odom_broadcast_tf" default="true"/>
+
+  <include file="$(find gazebo_ros)/launch/empty_world.launch" >
+    <arg name="world_name" value="$(find summit_package)/world/test_zone.world"/>
+  </include>
+
+  <!-- Load the URDF into ROS parameter server -->
+  <arg name="urdf_file" default="$(find summit_package)/robots/$(arg robot_model)" />
+  <param name="robot_description" command="$(find xacro)/xacro '$(arg urdf_file)' prefix:=$(arg prefix) ros_planar_move_plugin:=$(arg ros_planar_move_plugin)
+                ros_planar_move_plugin_force_based:=$(arg ros_planar_move_plugin_force_based)
+                omni_wheels:=$(arg omni_drive)"/>
+
+  <rosparam file="$(find summit_package)/config/robot_control.yaml" command="load" subst_value="true"/>
+
+  <!-- load the controllers -->
+  <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" args="
+    $(arg controller)
+    joint_read_state_controller
+    ">
+  </node>
+
+  <!-- Combine joint values -->
+  <node pkg="gazebo_ros" type="spawn_model" name="spawn_model" args="-urdf -param /robot_description -model summit -x 0 -y 0 -z 0 -R 0 -P 0 -Y 0"/>
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
+  <param name="publish_frequency" type="double" value="30.0" />
+  </node>
+
+  <!-- Show in Rviz   -->
+  <!--node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rviz_config)"/--> 
+</launch>
